@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
 
 import { ErrorResponse, AnalysisReportResponse } from '../../../../types/contract';
 import { createAnalysisReport } from '../../../../lib/server/analysisService';
 import { persistAnalysisReport } from '../../../../lib/server/reportRepository';
-import { authOptions } from '../../../../lib/server/authOptions';
 
 const parseRegionCode = (payload: unknown): string | null => {
   if (!payload || typeof payload !== 'object') {
@@ -22,12 +20,7 @@ const parseRegionCode = (payload: unknown): string | null => {
 };
 
 export async function POST(request: NextRequest): Promise<NextResponse<AnalysisReportResponse | ErrorResponse>> {
-  const session = await getServerSession(authOptions);
-  const ownerUserId = session?.user?.email?.trim();
-
-  if (!ownerUserId) {
-    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-  }
+  const ownerUserId = 'anonymous';
 
   const payload = await request.json().catch(() => null);
 
@@ -37,7 +30,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<AnalysisR
     const persistResult = regionCode
       ? await persistAnalysisReport({
           ownerUserId,
-          ownerEmail: session?.user?.email ?? undefined,
+          ownerEmail: undefined,
           regionCode,
           regionName: report.regionName,
           report,
@@ -54,6 +47,12 @@ export async function POST(request: NextRequest): Promise<NextResponse<AnalysisR
     }
     if (report.traceId) {
       response.headers.set('x-analysis-report-trace-id', report.traceId);
+    }
+    if (report.aiSource) {
+      response.headers.set('x-analysis-ai-source', report.aiSource);
+    }
+    if (report.fallbackReason) {
+      response.headers.set('x-analysis-fallback-reason', report.fallbackReason);
     }
 
     if (persistResult.documentId) {

@@ -36,6 +36,8 @@ export interface PolicyDocument {
   risks: string[];
   actionPlan: PolicyActionItem[];
   confidence: number;
+  aiSource: 'gemini' | 'fallback';
+  fallbackReason?: string;
 }
 
 const buildPrompt = (
@@ -47,7 +49,9 @@ const buildPrompt = (
   return `
 You are a Korean public policy analyst and must return JSON only.
 Return a strict JSON object with keys:
+- summary (string)
 - executiveSummary (string)
+- evidence (array of short Korean strings, 2~5 items)
 - risks (array of short Korean strings, 2~4 items)
 - actionPlan (array of objects: phase, task, owner, timeline)
 - confidence (number 0~100)
@@ -93,7 +97,11 @@ const POLICY_DOCUMENT_RESPONSE_SCHEMA = {
   required: ['summary', 'executiveSummary', 'evidence', 'risks', 'actionPlan', 'confidence'],
 };
 
-const defaultPolicyDocument = (regionId: string, scenario: Scenario): PolicyDocument => ({
+const defaultPolicyDocument = (
+  regionId: string,
+  scenario: Scenario,
+  reason = 'fallback-default'
+): PolicyDocument => ({
   summary: `${scenario}을(를) 우선 검토 대상으로 권장합니다. ${regionId}는 추가 정밀 분석이 필요합니다.`,
   executiveSummary: `${scenario}을(를) 우선 검토 대상으로 권장합니다. ${regionId}는 추가 정밀 분석이 필요합니다.`,
   evidence: [
@@ -110,11 +118,136 @@ const defaultPolicyDocument = (regionId: string, scenario: Scenario): PolicyDocu
     { phase: '3', task: '공청회 및 타당성 확정', owner: '민원지원', timeline: '4~6주' },
   ],
   confidence: 62,
+  aiSource: 'fallback',
+  fallbackReason: reason,
 });
+
+const stripListMarker = (value: string): string =>
+  value
+    .replace(/^[-*•\s]+/, '')
+    .replace(/^\d+[.)]\s*/, '')
+    .trim();
+
+const parseLoosePolicyDocumentFromText = (
+  text: string,
+  regionId: string,
+  _scenario: Scenario
+): PolicyDocument | null => {
+  const normalized = text
+    .replace(/```(?:json)?/gi, '')
+    .replace(/```/g, '')
+    .replace(/\r/g, '')
+    .trim();
+
+  if (normalized.length < 20) {
+    return null;
+  }
+
+  const lines = normalized
+    .split('\n')
+    .map((line) => stripListMarker(line))
+    .filter((line) => line.length > 0);
+
+  if (lines.length === 0) {
+    return null;
+  }
+
+  const keyValue = (key: string): string | undefined => {
+    const regex = new RegExp(`"${key}"\\s*:\\s*"([^"]+)"`, 'i');
+    const match = normalized.match(regex);
+    if (!match || !match[1]) {
+      return undefined;
+    }
+    const value = match[1].trim();
+    return value.length > 0 ? value : undefined;
+  };
+
+  const semanticLines = lines.filter((line) => {
+    if (/^[\{\}\[\],":]+$/.test(line)) {
+      return false;
+    }
+    if (/^"(summary|executiveSummary|evidence|risks|actionPlan|confidence)"\s*:?\s*$/i.test(line)) {
+      return false;
+    }
+    return true;
+  });
+
+  const summaryFromKey = keyValue('summary');
+  const summaryCandidate =
+    summaryFromKey ??
+    semanticLines.find(
+      (line) =>
+        line.length >= 8 &&
+        !/^(summary|executivesummary|evidence|risks|actionplan|confidence)\b/i.test(line)
+    );
+
+  if (!summaryCandidate) {
+    return null;
+  }
+  const normalizeLooseValue = (value: string): string =>
+    (() => {
+      const directSummary = value.match(/"?summary"?\s*:\s*"?(.+?)"?\s*[,]?$/i);
+      if (directSummary?.[1]) {
+        return directSummary[1].trim();
+      }
+      const directExec = value.match(/"?executiveSummary"?\s*:\s*"?(.+?)"?\s*[,]?$/i);
+      if (directExec?.[1]) {
+        return directExec[1].trim();
+      }
+      return value
+        .replace(/^[\{\[\s"']+/, '')
+        .replace(/[\}\]\s"',]+$/, '')
+        .trim();
+    })();
+
+  const summary = normalizeLooseValue(summaryCandidate).slice(0, 240);
+  const executiveSummary = normalizeLooseValue(keyValue('executiveSummary') ?? summary);
+
+  const bodyLines = semanticLines.filter((line) => line !== summaryCandidate);
+  const riskKeywords = /risk|위험|리스크|갈등|지연|초과|민원|불확실/i;
+  const riskLines = bodyLines.filter((line) => riskKeywords.test(line)).slice(0, 4);
+  const evidenceLines = bodyLines.filter((line) => line.length >= 6).slice(0, 5);
+  const numberedTasks = bodyLines.filter((line) => /^\d+[.)]/.test(line)).slice(0, 3);
+
+  const defaultPlan: PolicyActionItem[] = [
+    { phase: '1', task: '현장 기초 데이터 재확인', owner: '정책기획', timeline: '1~2주' },
+    { phase: '2', task: '사업성/리스크 세부 산정', owner: '도시정비', timeline: '2~4주' },
+    { phase: '3', task: '주민 커뮤니케이션 계획 수립', owner: '민원협력', timeline: '4~6주' },
+  ];
+
+  const actionPlan: PolicyActionItem[] =
+    numberedTasks.length > 0
+      ? numberedTasks.map((task, index) => ({
+          phase: String(index + 1),
+          task: stripListMarker(task).slice(0, 120),
+          owner: '정책기획',
+          timeline: `${index * 2 + 1}~${index * 2 + 2}주`,
+        }))
+      : defaultPlan;
+
+  const fallbackEvidence =
+    evidenceLines.length > 0
+      ? evidenceLines
+      : [`${regionId} 관련 핵심 지표를 기준으로 추가 정밀 검토가 필요합니다.`];
+  const fallbackRisks =
+    riskLines.length > 0
+      ? riskLines
+      : ['데이터 갱신 주기와 현장 변동 요인 간 시차 리스크가 존재합니다.'];
+
+  return {
+    summary,
+    executiveSummary,
+    evidence: fallbackEvidence,
+    risks: fallbackRisks,
+    actionPlan,
+    confidence: 68,
+    aiSource: 'gemini',
+  };
+};
 
 const normalizePolicyDocument = (raw: unknown, regionId: string, scenario: Scenario): PolicyDocument => {
   if (!raw || typeof raw !== 'object') {
-    return defaultPolicyDocument(regionId, scenario);
+    return defaultPolicyDocument(regionId, scenario, 'invalid-object');
   }
 
   const candidate = raw as {
@@ -153,17 +286,20 @@ const normalizePolicyDocument = (raw: unknown, regionId: string, scenario: Scena
       : [];
 
   const confidence = clampPercent(toNumber(candidate.confidence));
-  if (!summary || !executiveSummary || risks.length === 0 || actionPlan.length === 0 || evidence.length === 0) {
-    return defaultPolicyDocument(regionId, scenario);
+  if (!summary || !executiveSummary) {
+    return defaultPolicyDocument(regionId, scenario, 'missing-summary');
   }
+
+  const fallback = defaultPolicyDocument(regionId, scenario, 'json-partial');
 
   return {
     summary,
     executiveSummary,
-    risks,
-    evidence,
-    actionPlan,
+    risks: risks.length > 0 ? risks : fallback.risks,
+    evidence: evidence.length > 0 ? evidence : fallback.evidence,
+    actionPlan: actionPlan.length > 0 ? actionPlan : fallback.actionPlan,
     confidence: Number.isFinite(confidence) ? confidence : 65,
+    aiSource: 'gemini',
   };
 };
 
@@ -192,19 +328,29 @@ const extractGeneratedText = (data: unknown): string => {
 
 const parsePolicyDocumentFromText = (text: string, regionId: string, scenario: Scenario): PolicyDocument => {
   if (!text || text.trim().length < 10) {
-    return defaultPolicyDocument(regionId, scenario);
+    return defaultPolicyDocument(regionId, scenario, 'empty-text');
   }
 
   const jsonCandidate = extractPolicyDocumentJson(text);
   if (!jsonCandidate) {
-    return defaultPolicyDocument(regionId, scenario);
+    const snippet = text.replace(/\s+/g, ' ').trim().slice(0, 200);
+    console.warn(`[gemini] json-not-found raw="${snippet}"`);
+    const loose = parseLoosePolicyDocumentFromText(text, regionId, scenario);
+    if (loose) {
+      return loose;
+    }
+    return defaultPolicyDocument(regionId, scenario, 'json-not-found');
   }
 
   try {
     const parsed = JSON.parse(jsonCandidate) as unknown;
     return normalizePolicyDocument(parsed, regionId, scenario);
   } catch (_error) {
-    return defaultPolicyDocument(regionId, scenario);
+    const loose = parseLoosePolicyDocumentFromText(text, regionId, scenario);
+    if (loose) {
+      return loose;
+    }
+    return defaultPolicyDocument(regionId, scenario, 'json-parse-error');
   }
 };
 
@@ -214,6 +360,7 @@ const requestWithGoogleApi = async (
 ): Promise<string | null> => {
   const apiKey = getApiKey();
   if (!apiKey) {
+    console.warn('[gemini] api key missing');
     return null;
   }
 
@@ -226,6 +373,7 @@ const requestWithGoogleApi = async (
   });
 
   if (!response.ok) {
+    console.warn(`[gemini] google api failed: ${response.status}`);
     return null;
   }
 
@@ -247,6 +395,7 @@ const requestWithVertex = async (payload: Record<string, unknown>): Promise<stri
       }
     );
     if (!metadataResponse.ok) {
+      console.warn(`[gemini] vertex metadata failed: ${metadataResponse.status}`);
       return null;
     }
 
@@ -268,6 +417,7 @@ const requestWithVertex = async (payload: Record<string, unknown>): Promise<stri
     );
 
     if (!response.ok) {
+      console.warn(`[gemini] vertex generate failed: ${response.status}`);
       return null;
     }
 
@@ -311,7 +461,7 @@ export const generatePolicyDocument = async (
   scenario: Scenario,
   score: number
 ): Promise<PolicyDocument> => {
-  const fallbackDocument = defaultPolicyDocument(regionId, scenario);
+  let lastReason = 'fallback-default';
   const structuredPayload = buildPayload(regionId, metrics, scenario, score, true);
   const fallbackPayload = buildPayload(regionId, metrics, scenario, score, false);
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
@@ -320,37 +470,57 @@ export const generatePolicyDocument = async (
     const vertexText = await requestWithVertex(structuredPayload);
     if (vertexText) {
       const parsed = parsePolicyDocumentFromText(vertexText, regionId, scenario);
-      if (parsed.summary !== fallbackDocument.summary) {
+      if (parsed.aiSource === 'gemini') {
         return parsed;
       }
+      if (parsed.fallbackReason) {
+        lastReason = parsed.fallbackReason;
+      }
+    } else {
+      lastReason = 'vertex-structured-empty';
     }
 
     const fallbackVertexText = await requestWithVertex(fallbackPayload);
     if (fallbackVertexText) {
       const parsed = parsePolicyDocumentFromText(fallbackVertexText, regionId, scenario);
-      if (parsed.summary !== fallbackDocument.summary) {
+      if (parsed.aiSource === 'gemini') {
         return parsed;
       }
+      if (parsed.fallbackReason) {
+        lastReason = parsed.fallbackReason;
+      }
+    } else if (lastReason === 'vertex-structured-empty') {
+      lastReason = 'vertex-fallback-empty';
     }
   }
 
   const googleText = await requestWithGoogleApi(endpoint, structuredPayload);
   if (googleText) {
     const parsed = parsePolicyDocumentFromText(googleText, regionId, scenario);
-    if (parsed.summary !== fallbackDocument.summary) {
+    if (parsed.aiSource === 'gemini') {
       return parsed;
     }
+    if (parsed.fallbackReason) {
+      lastReason = parsed.fallbackReason;
+    }
+  } else if (!isVertexMode()) {
+    lastReason = getApiKey() ? 'google-structured-empty' : 'missing-api-key';
   }
 
   const fallbackText = await requestWithGoogleApi(endpoint, fallbackPayload);
   if (fallbackText) {
     const parsed = parsePolicyDocumentFromText(fallbackText, regionId, scenario);
-    if (parsed.summary !== fallbackDocument.summary) {
+    if (parsed.aiSource === 'gemini') {
       return parsed;
     }
+    if (parsed.fallbackReason) {
+      lastReason = parsed.fallbackReason;
+    }
+  } else if (!isVertexMode() && lastReason === 'google-structured-empty') {
+    lastReason = 'google-fallback-empty';
   }
 
-  return fallbackDocument;
+  return defaultPolicyDocument(regionId, scenario, lastReason);
 };
 
 export const generatePolicySummary = async (

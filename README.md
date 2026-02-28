@@ -51,6 +51,12 @@ npm run dev
 - LLM
   - `GEMINI_API_KEY`
   - `GEMINI_MODEL`
+- Public Data (data.go.kr)
+  - `REALDATA_ENABLED`
+  - `DATA_GO_KR_SERVICE_KEY`
+  - `DATA_GO_KR_TIMEOUT_MS`
+  - `DATA_GO_KR_BUILDING_ENDPOINT`
+  - `DATA_GO_KR_APT_TRADE_ENDPOINT`
 - Firestore
   - `FIREBASE_USE_FIRESTORE`
   - `FIREBASE_PROJECT_ID`
@@ -105,3 +111,48 @@ Additional optional controls:
 
 The workflow also performs a post-deploy remote smoke check by executing:
 - `scripts/smoke-test-gcp.sh <service-url>`
+
+## Desktop (Electron)
+
+Desktop builds use the already-existing Next.js standalone output.
+
+```bash
+npm run desktop:start
+```
+
+- Builds the app, starts the embedded Next.js server, and opens the Electron window.
+- Use `Ctrl/Cmd + R` in the app window for hard refresh.
+
+```bash
+npm run desktop:pack
+```
+
+- Builds the app and packages installers for:
+  - Windows: NSIS (`.exe`)
+  - macOS: DMG (`.dmg`)
+  - Linux: AppImage
+
+Build artifacts are emitted to `dist/`.
+
+Notes:
+- If your environment depends on external keys, copy `.env.example` to `.env.local` before packaging/running.
+- Keep secrets in platform-specific secure storage before production distribution.
+
+Troubleshooting:
+- If desktop validation exits with `spawn EPERM` during startup:
+  - The sandboxed environment here blocks Node.js worker-process spawning for both `next build` and `next dev`.
+  - Re-run on a normal local terminal (CMD/PowerShell) outside this constrained environment.
+  - If it still happens locally, verify:
+    - Windows security/antivirus policy is not blocking `node.exe`/`fork`.
+    - `node_modules` is fully writable and not marked read-only.
+    - Running as current user with normal shell rights.
+  - Re-run this sequence after fixing:
+    - `npm install`
+    - `npm run build`
+    - `npm run desktop:start`
+- For a step-by-step failure triage (EPERM/EACCES/URL parse), use:
+  - `DESKTOP_ELECTRON_TROUBLESHOOTING_2026-02-28.md`
+
+Desktop helper scripts:
+- `npm run desktop:build`: build only
+- `npm run desktop:run`: launch Electron only (requires `.next/standalone/server.js` present)

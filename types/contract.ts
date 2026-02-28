@@ -1,4 +1,4 @@
-import { RegionLevel, RegionMetrics } from './domain';
+import { BuildingFacts, GeoPoint, RegionLevel, RegionMetrics, TradeFacts } from './domain';
 
 export type AnalysisScenario =
   | 'full_redevelopment'
@@ -14,11 +14,18 @@ export interface RegionSummaryResponse {
   regionCode: string;
   name: string;
   level: RegionLevel;
+  center: GeoPoint;
   metrics: RegionMetrics;
-  priorityScore: number;
-  summary: string;
+  buildingFacts?: BuildingFacts;
+  buildingFactsStatus?: 'ok' | 'disabled' | 'missing-lookup' | 'no-data' | 'request-failed';
+  buildingFactsAttempts?: number;
+  tradeFacts?: TradeFacts;
+  dataSource?: string[];
   source: string;
   updatedAt: string;
+  priorityScore: number;
+  summary: string;
+  sceneImageHint?: string;
 }
 
 export interface RegionMetricsRequest {
@@ -64,6 +71,8 @@ export interface AnalysisReportResponse {
   traceId?: string;
   regionName?: string;
   executiveSummary?: string;
+  aiSource?: 'gemini' | 'fallback';
+  fallbackReason?: string;
   metrics: RegionMetrics;
   weightedScores: {
     agingScore: number;

@@ -1,0 +1,118 @@
+FILE: 아파트 매매 실거래가 자료 기술문서.hwp
+
+STREAMS:
+HwpSummaryInformation
+BinData/BIN0001.jpg
+BodyText/Section0
+DocInfo
+DocOptions/_LinkDoc
+FileHeader
+PrvImage
+PrvText
+Scripts/DefaultJScript
+Scripts/JScriptVersion
+
+=== PREVIEW TEXT ===
+<국토교통부 실거래가 정보  오픈API 활용 가이드  아파트 매매 실거래가 자료 ->
+<목  차><    Ⅰ. 서비스 명세  1        가. API 서비스 개요  5            나. 상세기능 목록  6            다. 상세기능내역  6          Ⅱ. OPENAPI 에러 코드정리  2    >
+<Ⅰ><>< 서비스 명세>
+
+󰊱 공공데이터 OpenAPI 조회 서비스
+
+가. API 서비스 개요
+
+<API 서비스 정보><API명(영문)><Actual apartment sales price data><API명(국문)><아파트 매매 실거래가 자료><API 설명><지역코드와 기간을 설정하여 해당지역, 해당기간의 아파트 매매 실거래가 자료를 제공하는 아파트 매매 실거래가 정보 조회>
+<API 서비스 보안적용 기술 수준><서비스 인증/권한><[O] Service Key    [ ] 인증서 (GPKI/NPKI) [  ] BASID(IP/PW)  [ ] 없음><메시지 레벨 암호화><[ ] 전자서명  [ ] 암호화  [O] 없음><전송 레벨 암호화><[ ] SSL  [O] 없음><인터페이스 표준><[ ] SOAP 1.2 (RPC-Encoded, Document Literal, Document Literal Wrapped) [O] REST (GET)  [ ] RSS 1.0   [ ] RSS 2.0  [ ]ATOM 1.0  [ ] 기타><교환 데이터 표준 (중복선택가능)><[O] XML  [ ] JSON  [ ] MINE  [ ] MTOM>
+<API 서비스 배포정보><서비스 URL><https://apis.data.go.kr/1613000/RTMSDataSvcAptTrade><서비스 명세 URL (WSDL 또는 WADL)><https://apis.data.go.kr/1613000/RTMSDataSvcAptTrade/getRTMSDataSvcAptTrade?_wadl&type=xml><서비스 버전><1.0><서비스 시작일><2024.07.17><서비스 배포일><2024.07>
+
+=== EXTRACTED TEXT CANDIDATES ===
+국토교통부 실거래가 정보
+오픈API 활용 가이드
+아파트 매매 실거래가 자료 -
+가. API 서비스 개요
+나. 상세기능 목록
+. OPENAPI 에러 코드정리
+공공데이터 Ope API 조회 서비스
+API 서비스 보안적용 기술 수준
+[O] Se vice Key [ ] 인증서 (GPKI/NPKI)
+[ ] BASID(IP/PW) [ ] 없음
+[ ] 전자서명 [ ] 암호화 [O] 없음
+[ ] SSL [O] 없음
+[ ] SOAP 1.2 (RPC-E coded, Docume Li e al, Docume Li e al W apped) [O] REST (GET) [ ] RSS 1.0
+[ ] RSS 2.0 [ ]ATOM 1.0 [ ] 기타
+[O] XML [ ] JSON [ ] MINE [ ] MTOM
+서비스 명세 URL
+(WSDL 또는 WADL)
+ge RTMSDa aSvcAp T ade
+Call Back URL
+최대 메시지 사이즈
+초당 최대 트랙잭션
+h p ://www.code.go.k ;1;0;0;틵
+실거래 자료의 계약년월(6자리)
+공공데이터포털에서 발급받은 인증키
+한 페이지 결과 수
+c) 응답 메시지 명세
+토지임대부 아파트 여부
+항목구분 : 필수(1), 옵션(0), 1건 이상 복수건(1.. ), 0건 또는 복수건(0.. )
+d) 요청/응답 메시지 예제
+h ps://apis.da a.go.k /1613000/RTMSDa aSvcAp T ade/ge RTMSDa aSvcAp T ade?se viceKey=서비스키&LAWD_CD=11110&DEAL_YMD=202407&pageNo=1& umOfRows=1
+< esul Code>000</ esul Code>
+< esul Msg>OK</ esul Msg>
+<ap Do g> </ap Do g>
+<ap Nm>종로중흥S클래스</ap Nm>
+<buildYea >2013</buildYea >
+<buye Gb >개인</buye Gb >
+<cdealDay> </cdealDay>
+<cdealType> </cdealType>
+<dealAmou >12,000</dealAmou >
+<dealDay>23</dealDay>
+<dealMo h>7</dealMo h>
+<dealYea >2024</dealYea >
+<deali gGb >중개거래</deali gGb >
+<es a eAge SggNm>서울 종로구</es a eAge SggNm>
+<excluUseA >17.811</excluUseA >
+<floo >10</floo >
+<jibu >202-3</jibu >
+<la dLeaseholdGb >N</la dLeaseholdGb >
+< gs Da e> </ gs Da e>
+<sggCd>11110</sggCd>
+<sle Gb >개인</sle Gb >
+<umdNm>숭인동</umdNm>
+< umOfRows>1</ umOfRows>
+<pageNo>1</pageNo>
+< o alCou >49</ o alCou >
+</ espo se>
+Ope API 에러 코드정리
+OPEN API 에러 코드 별 조치방안
+Applica io E o
+서비스 제공기관의 관리자에게 문의하시기 바랍니다.
+se vice ime ou
+잘못된 요청 파라미터 에러
+Ope API 요청 값에서 Se viceKey 파라미터가 누락되었습니다.
+Ope API 요청 URL을 확인하시기 바랍니다.
+필수 요청 파라미터가 없음
+기술문서를 다시 한번 확인하시어 주시기 바랍니다.
+해당 오픈 API 서비스가 없거나 폐기됨
+제공기관 관리자에게 폐기된 서비스인지 확인합니다.
+폐기된 서비스가 아니면 개발가이드에서 Ope Api 요청 URL을 다시 확인하시기 바랍니다.
+Ope Api활용 신청정보의 승인상태를 확인하시기 바랍니다.
+활용신청에 대해 제공기관 담당자가 확인 후
+이후부터 사용할 수 있습니다.
+신청 후 2~3일이 소요되고 결과는 회원가입 시 등록한 e-mail로 발송합니다.
+서비스 요청 제한 횟수 초과 에러
+Ope API 활용신청정보의 서비스 상세기능별 일일트랙픽량을 확인하시기 바랍니다.
+개발계정의 경우 제공기관에서 정의한 트래픽을 초과하여 활용할 수 없습니다.
+운영계정의 경우 변경신청을 통해서 일일트래픽량을 변경할 수 있습니다.
+등록되지 않은 서비스키
+Ope API 활용신청정보의 발급받은 서비스키를 다시 확인하시기 바랍니다.
+서비스키 값이 같다면 서비스키가 URL 인코딩 되었는지 다시 확인하시기 바랍니다.
+기간 만료된 서비스키
+Ope API 활용신청정보의 활용기간을 확인합니다.
+활용기간이 지난 서비스는 이용할 수 없으며 연장신청을 통해 승인받은 후 다시 이용이 가능합니다.
+등록되지 않은 도메인명 또는 IP 주소
+Ope API활용신청정보의 등록된 도메인명이나 IP주소를 다시 확인합니다.
+IP나 도메인의 정보를 변경하기 위해 변경신청을 할 수 있습니다.
+아파트매매 실거래자료
+deale lawd m
+es a eAge SggNm
+la dLeaseholdGb

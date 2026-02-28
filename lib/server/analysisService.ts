@@ -124,5 +124,7 @@ export const createAnalysisReport = async (
     traceId: createTraceId(),
     regionName: resolvedRegionName,
     executiveSummary: policyDocument.executiveSummary,
+    aiSource: policyDocument.aiSource,
+    fallbackReason: policyDocument.fallbackReason,
   };
 };

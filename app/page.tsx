@@ -1,28 +1,30 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { signIn, signOut, useSession } from 'next-auth/react';
 
 import type {
-  AnalysisReportResponse,
   AnalysisReportListItem,
+  AnalysisReportResponse,
   ErrorResponse,
   RegionSummaryResponse,
 } from '../types/contract';
+import ReportPanel from './ui/analysis/ReportPanel';
+import RecentActivityPanel from './ui/analysis/RecentActivityPanel';
+import StreetViewPanel from './ui/analysis/StreetViewPanel';
 import HudBottomUtility from './ui/hud/HudBottomUtility';
 import CommandInputPanel from './ui/hud/CommandInputPanel';
 import HudStatusBar from './ui/hud/HudStatusBar';
+import RegionMapPanel from './ui/map/RegionMapPanel';
 import ScoreGrid from './ui/metrics/ScoreGrid';
-import ReportPanel from './ui/analysis/ReportPanel';
-import RecentActivityPanel from './ui/analysis/RecentActivityPanel';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.trim() ?? '';
-const DEFAULT_ADDRESS = process.env.NEXT_PUBLIC_DEFAULT_ADDRESS?.trim() || '서울';
+const DEFAULT_ADDRESS = process.env.NEXT_PUBLIC_DEFAULT_ADDRESS?.trim() || 'seoul';
 const QUICK_TARGETS = [
-  { label: '서울', code: 'KR-11', value: '서울' },
-  { label: '강남구 대치동', code: 'KR-SG', value: '강남구 대치동' },
-  { label: '해운대구 반여동', code: 'KR-BS', value: '해운대구 반여동' },
-  { label: '부산', code: 'KR-26', value: '부산' },
+  { label: 'Seoul', code: 'KR-11', value: 'seoul' },
+  { label: 'Gangnam-gu', code: 'KR-11680', value: 'seoul gangnam-gu' },
+  { label: 'Haeundae-gu', code: 'KR-26350', value: 'busan haeundae-gu' },
+  { label: 'Yuseong-gu', code: 'KR-30200', value: 'daejeon yuseong-gu' },
+  { label: 'Jeju', code: 'KR-50', value: 'jeju' },
 ] as const;
 
 interface HealthResponse {
@@ -48,7 +50,7 @@ const getErrorMessage = (payload: unknown): string => {
       return error;
     }
   }
-  return '요청을 처리할 수 없습니다.';
+  return 'Request failed.';
 };
 
 const formatTimestamp = (value: string | undefined): string => {
@@ -60,8 +62,14 @@ const formatTimestamp = (value: string | undefined): string => {
   if (Number.isNaN(parsed)) {
     return value;
   }
-
   return new Date(parsed).toLocaleString();
+};
+
+const formatNumber = (value: number | undefined, maximumFractionDigits = 2): string => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return 'N/A';
+  }
+  return new Intl.NumberFormat('ko-KR', { maximumFractionDigits }).format(value);
 };
 
 const metricClass = (value: number): string => {
@@ -75,7 +83,6 @@ const metricClass = (value: number): string => {
 };
 
 export default function HomePage() {
-  const { data: session, status: sessionStatus } = useSession();
   const [address, setAddress] = useState(DEFAULT_ADDRESS);
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [summary, setSummary] = useState<RegionSummaryResponse | null>(null);
@@ -87,13 +94,8 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(true);
 
-  const isAuthenticated = sessionStatus === 'authenticated';
-  const canAnalyze = useMemo(
-    () => !loadingReport && summary !== null && isAuthenticated,
-    [loadingReport, summary, isAuthenticated]
-  );
-  const authLabel = isAuthenticated ? session?.user?.email ?? 'signed-in' : 'not-signed-in';
-  const modelMode = process.env.GEMINI_API_MODE === 'vertex' ? 'VERTEX' : 'GOOGLE_AI';
+  const canAnalyze = useMemo(() => !loadingReport && summary !== null, [loadingReport, summary]);
+  const authLabel = 'anonymous';
   const netPill = isOnline ? 'ONLINE' : 'OFFLINE';
   const aiPill = health?.status === 'ok' ? 'CONNECTED' : 'READY';
   const dbPill = health?.firestoreEnabled ? 'SYNCED' : 'LOCAL';
@@ -137,29 +139,26 @@ export default function HomePage() {
       await fetchHealth();
     } catch (requestError) {
       setSummary(null);
-      setError(requestError instanceof Error ? requestError.message : '지역 조회 요청이 실패했습니다.');
+      setError(requestError instanceof Error ? requestError.message : 'Failed to fetch region summary.');
     } finally {
       setLoadingSummary(false);
     }
   };
 
   const fetchRecentReports = async (): Promise<void> => {
-    if (!isAuthenticated) {
-      setRecentReports([]);
-      return;
-    }
-
     setLoadingRecentReports(true);
-
     try {
       const response = await fetch(toApiUrl('/api/analysis/reports?limit=5'), { cache: 'no-store' });
       if (!response.ok) {
+        setRecentReports([]);
         return;
       }
 
       const payload = (await response.json()) as { items: AnalysisReportListItem[] } | ErrorResponse;
       if ('items' in payload) {
         setRecentReports(payload.items);
+      } else {
+        setRecentReports([]);
       }
     } catch {
       setRecentReports([]);
@@ -169,11 +168,7 @@ export default function HomePage() {
   };
 
   useEffect(() => {
-    if (isAuthenticated) {
-      void fetchRecentReports();
-    } else {
-      setRecentReports([]);
-    }
+    void fetchRecentReports();
     void fetchHealth();
 
     const onOnline = () => setIsOnline(true);
@@ -186,13 +181,13 @@ export default function HomePage() {
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
     };
-  }, [isAuthenticated]);
+  }, []);
 
   const onSubmitAddress = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
     const trimmed = address.trim();
     if (!trimmed) {
-      setError('지역명을 입력해주세요.');
+      setError('Please enter an address.');
       return;
     }
     await fetchSummary(trimmed);
@@ -205,10 +200,6 @@ export default function HomePage() {
 
   const requestAnalysis = async (): Promise<void> => {
     if (!summary) {
-      return;
-    }
-    if (!isAuthenticated) {
-      setError('Google 로그인 후 분석을 실행할 수 있습니다.');
       return;
     }
 
@@ -236,7 +227,7 @@ export default function HomePage() {
       await fetchRecentReports();
       await fetchHealth();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : '분석 요청 처리에 실패했습니다.');
+      setError(requestError instanceof Error ? requestError.message : 'Failed to run analysis.');
     } finally {
       setLoadingReport(false);
     }
@@ -260,15 +251,6 @@ export default function HomePage() {
         }}
       >
         <span className="hud-status-label">USER: {authLabel}</span>
-        {isAuthenticated ? (
-          <button className="hud-button hud-button-ghost" onClick={() => void signOut({ callbackUrl: '/' })}>
-            로그아웃
-          </button>
-        ) : (
-          <button className="hud-button hud-button-ghost" onClick={() => void signIn('google')}>
-            Google 로그인
-          </button>
-        )}
       </section>
 
       <section className="hud-progress-track">
@@ -288,7 +270,6 @@ export default function HomePage() {
       <section className="hud-grid hud-grid-main">
         <article className="hud-panel hud-panel-primary">
           <h2 className="hud-panel-title">Region Search / Summary</h2>
-
           {error && <div className="hud-error">{error}</div>}
 
           {summary ? (
@@ -299,24 +280,90 @@ export default function HomePage() {
               </div>
               <p className="hud-panel-sub">{summary.summary}</p>
               <p className="hud-panel-sub">Updated {formatTimestamp(summary.updatedAt)}</p>
+
+              {(summary.buildingFacts || summary.tradeFacts) && (
+                <div className="hud-kv-grid" style={{ marginBottom: 10 }}>
+                  {summary.buildingFacts && (
+                    <>
+                      <div className="hud-kv">
+                        <span>Avg Completion Year</span>
+                        <strong>{formatNumber(summary.buildingFacts.avgCompletionYear, 0)}</strong>
+                      </div>
+                      <div className="hud-kv">
+                        <span>Avg Gross Area (m2)</span>
+                        <strong>{formatNumber(summary.buildingFacts.avgGrossArea)}</strong>
+                      </div>
+                      <div className="hud-kv">
+                        <span>Avg FAR (%)</span>
+                        <strong>{formatNumber(summary.buildingFacts.avgFloorAreaRatio)}</strong>
+                      </div>
+                      <div className="hud-kv">
+                        <span>Building Samples</span>
+                        <strong>{formatNumber(summary.buildingFacts.sampleSize, 0)}</strong>
+                      </div>
+                    </>
+                  )}
+
+                  {summary.tradeFacts && (
+                    <>
+                      <div className="hud-kv">
+                        <span>Avg Deal Amount</span>
+                        <strong>{formatNumber(summary.tradeFacts.avgDealAmount)}</strong>
+                      </div>
+                      <div className="hud-kv">
+                        <span>Median Deal Amount</span>
+                        <strong>{formatNumber(summary.tradeFacts.medianDealAmount)}</strong>
+                      </div>
+                      <div className="hud-kv">
+                        <span>Deal Count</span>
+                        <strong>{formatNumber(summary.tradeFacts.dealCount, 0)}</strong>
+                      </div>
+                      <div className="hud-kv">
+                        <span>3M Price Trend (%)</span>
+                        <strong>{formatNumber(summary.tradeFacts.priceTrend3m)}</strong>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {!summary.buildingFacts && summary.buildingFactsStatus && (
+                <p className="hud-panel-sub">
+                  Building data status: {summary.buildingFactsStatus}
+                  {typeof summary.buildingFactsAttempts === 'number'
+                    ? ` (attempts: ${summary.buildingFactsAttempts})`
+                    : ''}
+                </p>
+              )}
+
+              {summary.dataSource && summary.dataSource.length > 0 && (
+                <p className="hud-panel-sub">External Sources: {summary.dataSource.join(', ')}</p>
+              )}
+
               <ScoreGrid metrics={summary.metrics} metricClass={metricClass} />
+
               <div className="hud-actions">
                 <button
                   className="hud-button hud-button-ghost"
                   onClick={() => void requestAnalysis()}
                   disabled={!canAnalyze}
                 >
-                  {loadingReport ? '분석 중...' : 'Gemini 분석 시작'}
+                  {loadingReport ? 'Analyzing...' : 'Run Gemini Analysis'}
                 </button>
                 <span className="hud-status-label">Priority Score: {summary.priorityScore}</span>
               </div>
             </>
           ) : (
-            <p className="hud-empty">지역을 조회한 뒤 분석 버튼을 눌러 결과를 받아보세요.</p>
+            <p className="hud-empty">Search a region and run analysis to view results.</p>
           )}
         </article>
 
         <ReportPanel report={report} />
+      </section>
+
+      <section className="hud-grid hud-media-grid">
+        <RegionMapPanel center={summary?.center} regionName={summary?.name} loading={loadingSummary} />
+        <StreetViewPanel center={summary?.center} regionName={summary?.name} loading={loadingSummary} />
       </section>
 
       <RecentActivityPanel recentReports={recentReports} loadingRecentReports={loadingRecentReports} />

@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
 
 import { AnalysisReportsResponse, ErrorResponse } from '../../../../types/contract';
 import { listRecentAnalysisReports } from '../../../../lib/server/reportRepository';
-import { authOptions } from '../../../../lib/server/authOptions';
 
 const normalizeLimit = (value: string | null): number => {
   if (!value) {
@@ -19,12 +17,7 @@ const normalizeLimit = (value: string | null): number => {
 };
 
 export async function GET(request: NextRequest): Promise<NextResponse<AnalysisReportsResponse | ErrorResponse>> {
-  const session = await getServerSession(authOptions);
-  const ownerUserId = session?.user?.email?.trim();
-
-  if (!ownerUserId) {
-    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-  }
+  const ownerUserId = 'anonymous';
 
   const limit = normalizeLimit(request.nextUrl.searchParams.get('limit'));
 

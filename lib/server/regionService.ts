@@ -1,6 +1,10 @@
 import { RegionSummaryResponse, RegionMetricsResponse } from '../../types/contract';
 import { calculatePriority } from '../scoring';
 import { getRegionByCode, resolveRegionByAddress } from '../adapters/regionDataAdapter';
+import {
+  collectRegionExternalFacts,
+  mergeMetricsWithExternalFacts,
+} from './externalDataService';
 
 export const getRegionSummary = async (address: string): Promise<RegionSummaryResponse | null> => {
   const region = await resolveRegionByAddress(address);
@@ -8,14 +12,22 @@ export const getRegionSummary = async (address: string): Promise<RegionSummaryRe
     return null;
   }
 
-  const score = calculatePriority(region.metrics);
+  const externalFacts = await collectRegionExternalFacts(region);
+  const mergedMetrics = mergeMetricsWithExternalFacts(region.metrics, externalFacts);
+  const score = calculatePriority(mergedMetrics);
 
   return {
     regionId: region.id,
     regionCode: region.code,
     name: region.name,
     level: region.level,
-    metrics: region.metrics,
+    center: region.center,
+    metrics: mergedMetrics,
+    buildingFacts: externalFacts.buildingFacts ?? undefined,
+    buildingFactsStatus: externalFacts.buildingFactsStatus,
+    buildingFactsAttempts: externalFacts.buildingFactsAttempts,
+    tradeFacts: externalFacts.tradeFacts ?? undefined,
+    dataSource: externalFacts.dataSource.length > 0 ? externalFacts.dataSource : undefined,
     priorityScore: score.priorityScore,
     summary: `Derived from address match for "${address}".`,
     source: region.source,
