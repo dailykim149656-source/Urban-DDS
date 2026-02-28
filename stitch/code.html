@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Ops Center Dark: Command Overview</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Noto+Sans+KR:wght@300;400;500;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Configuration -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#06e8f9", // Cyan
+                        "primary-dim": "rgba(6, 232, 249, 0.1)",
+                        "alert": "#FF003C", // Magenta
+                        "success": "#00FF94", // Neon Green
+                        "background-light": "#f5f8f8",
+                        "background-dark": "#050505",
+                        "surface-dark": "#0A0A0A",
+                        "text-main": "#E0E0E0",
+                        "text-muted": "#404040",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"],
+                        "body": ["Noto Sans KR", "sans-serif"],
+                        "mono": ["JetBrains Mono", "monospace"],
+                    },
+                    backgroundImage: {
+                        'grid-pattern': "linear-gradient(to right, #151515 1px, transparent 1px), linear-gradient(to bottom, #151515 1px, transparent 1px)",
+                    },
+                    boxShadow: {
+                        'glow': '0 0 10px rgba(6, 232, 249, 0.3)',
+                        'glow-lg': '0 0 20px rgba(6, 232, 249, 0.5)',
+                        'glow-error': '0 0 10px rgba(255, 0, 60, 0.4)',
+                    },
+                    animation: {
+                        'scanline': 'scanline 8s linear infinite',
+                        'blink': 'blink 1s step-end infinite',
+                        'marquee': 'marquee 25s linear infinite',
+                    },
+                    keyframes: {
+                        scanline: {
+                            '0%': { transform: 'translateY(-100%)' },
+                            '100%': { transform: 'translateY(100%)' },
+                        },
+                        blink: {
+                            '0%, 100%': { opacity: '1' },
+                            '50%': { opacity: '0' },
+                        },
+                        marquee: {
+                            '0%': { transform: 'translateX(100%)' },
+                            '100%': { transform: 'translateX(-100%)' },
+                        }
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        /* Custom Utilities for HUD aesthetics */
+        .hud-border {
+            position: relative;
+            border: 1px solid #333;
+        }
+        
+        /* Corner brackets effect */
+        .hud-bracket::before,
+        .hud-bracket::after {
+            content: '';
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-color: #06e8f9;
+            border-style: solid;
+            transition: all 0.3s ease;
+        }
+
+        .hud-bracket::before {
+            top: -1px;
+            left: -1px;
+            border-width: 2px 0 0 2px;
+        }
+
+        .hud-bracket::after {
+            bottom: -1px;
+            right: -1px;
+            border-width: 0 2px 2px 0;
+        }
+
+        .scanline-overlay {
+            background: linear-gradient(
+                to bottom,
+                rgba(255,255,255,0),
+                rgba(255,255,255,0) 50%,
+                rgba(0,0,0,0.2) 50%,
+                rgba(0,0,0,0.2)
+            );
+            background-size: 100% 4px;
+            pointer-events: none;
+        }
+
+        .crt-flicker {
+            animation: flicker 0.15s infinite;
+            opacity: 0.95;
+        }
+
+        @keyframes flicker {
+            0% { opacity: 0.97; }
+            5% { opacity: 0.95; }
+            10% { opacity: 0.9; }
+            15% { opacity: 0.95; }
+            20% { opacity: 0.99; }
+            50% { opacity: 0.95; }
+            80% { opacity: 0.9; }
+            100% { opacity: 0.98; }
+        }
+
+        /* Hide scrollbar for ticker */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-background-dark text-text-main font-body h-screen w-screen overflow-hidden selection:bg-primary selection:text-black">
+<!-- Global Background Elements -->
+<div class="absolute inset-0 z-0 bg-grid-pattern bg-[size:40px_40px] opacity-40"></div>
+<div class="absolute inset-0 z-10 pointer-events-none scanline-overlay opacity-20"></div>
+<!-- Moving Scanline Beam -->
+<div class="absolute inset-0 z-20 pointer-events-none overflow-hidden">
+<div class="w-full h-[5vh] bg-gradient-to-b from-transparent via-primary/5 to-transparent animate-scanline"></div>
+</div>
+<!-- Main Container -->
+<div class="relative z-30 flex flex-col h-full crt-flicker">
+<!-- Top Header Bar -->
+<header class="h-[60px] border-b border-[#333] bg-surface-dark/80 backdrop-blur-sm flex items-center px-6 justify-between shrink-0">
+<!-- Logo Section -->
+<div class="flex items-center gap-4">
+<div class="size-8 flex items-center justify-center text-primary border border-primary/30 bg-primary/10">
+<span class="material-symbols-outlined text-[20px]">radar</span>
+</div>
+<div class="flex flex-col">
+<h1 class="font-display font-bold text-lg tracking-[0.1em] text-white leading-none">
+                        OPS :: CENTER <span class="text-primary">//</span> DARK
+                    </h1>
+<span class="font-mono text-[10px] text-primary/70 tracking-widest mt-1">V.4.0.2 [STABLE]</span>
+</div>
+</div>
+<!-- Central Scrolling Ticker -->
+<div class="flex-1 mx-12 overflow-hidden relative h-full flex items-center max-w-2xl border-x border-[#333]/50 bg-black/20">
+<div class="whitespace-nowrap animate-marquee font-mono text-xs text-[#9bb9bb]">
+                    SYSTEM INTEGRITY 100% // REGION DATA SYNCED // AWAITING OPERATOR INPUT // ENCRYPTION: AES-256-GCM // NODE LATENCY: 12ms // WEATHER: ACID RAIN ALERT SECTOR 7 //
+                </div>
+</div>
+<!-- Right Status Indicators -->
+<div class="flex items-center gap-2">
+<!-- Status Pill -->
+<div class="flex items-center bg-[#151515] border border-[#333] px-3 py-1.5 gap-4">
+<div class="flex items-center gap-2">
+<span class="font-mono text-[10px] font-bold text-text-muted">NET:</span>
+<span class="font-mono text-[10px] font-bold text-white">ONLINE</span>
+<div class="w-1.5 h-1.5 rounded-full bg-success shadow-[0_0_5px_#00FF94]"></div>
+</div>
+<div class="w-px h-3 bg-[#333]"></div>
+<div class="flex items-center gap-2">
+<span class="font-mono text-[10px] font-bold text-text-muted">AI:</span>
+<span class="font-mono text-[10px] font-bold text-white">CONNECTED</span>
+<div class="w-1.5 h-1.5 rounded-full bg-success shadow-[0_0_5px_#00FF94]"></div>
+</div>
+<div class="w-px h-3 bg-[#333]"></div>
+<div class="flex items-center gap-2">
+<span class="font-mono text-[10px] font-bold text-text-muted">DB:</span>
+<span class="font-mono text-[10px] font-bold text-white">SYNCED</span>
+<div class="w-1.5 h-1.5 rounded-full bg-success shadow-[0_0_5px_#00FF94]"></div>
+</div>
+</div>
+<!-- User Profile/Settings -->
+<button class="w-9 h-9 flex items-center justify-center border border-[#333] bg-[#151515] hover:bg-primary/20 hover:border-primary transition-colors text-white">
+<span class="material-symbols-outlined text-[18px]">settings</span>
+</button>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col items-center justify-center p-6 relative">
+<!-- Central Command Interface -->
+<div class="w-full max-w-3xl flex flex-col gap-12 relative">
+<!-- Decorative elements around main input -->
+<div class="absolute -top-12 left-0 font-mono text-xs text-primary/50 flex gap-2">
+<span class="material-symbols-outlined text-[14px]">terminal</span>
+                    TERMINAL ACCESS
+                </div>
+<div class="absolute -top-12 right-0 font-mono text-xs text-primary/50 text-right">
+                    SECURE CONNECTION<br/>ID: 884-XJ-09
+                </div>
+<!-- Primary Input Section -->
+<div class="relative group">
+<div class="absolute -left-4 top-1/2 -translate-y-1/2 w-1 h-8 bg-primary/30 group-focus-within:bg-primary transition-colors"></div>
+<label class="sr-only" for="command-input">Enter Target Coordinates</label>
+<div class="relative flex items-center">
+<span class="absolute left-0 top-1/2 -translate-y-1/2 font-display text-2xl text-primary font-bold pr-4 select-none">&gt;</span>
+<input autocomplete="off" class="w-full bg-transparent border-b-2 border-[#333] focus:border-primary text-2xl md:text-4xl font-display font-bold text-white py-4 pl-8 pr-4 outline-none placeholder-transparent transition-all duration-300 focus:shadow-[0_10px_20px_-10px_rgba(6,232,249,0.2)] tracking-wide uppercase" id="command-input" placeholder="AWAITING TARGET COORDINATES..." type="text"/>
+<!-- Custom animated placeholder/cursor overlay -->
+<div class="absolute left-8 top-1/2 -translate-y-1/2 pointer-events-none flex items-center">
+<span class="text-2xl md:text-4xl font-display font-bold text-text-muted/50 uppercase tracking-wide" id="typing-placeholder">AWAITING TARGET COORDINATES...</span>
+<span class="inline-block w-3 h-8 md:h-10 bg-primary ml-1 animate-blink shadow-[0_0_10px_#06e8f9]"></span>
+</div>
+</div>
+<div class="flex justify-between mt-2 font-mono text-[10px] text-text-muted">
+<span>INPUT MODE: REGIONAL_SEARCH</span>
+<span>MAX RESULTS: 100</span>
+</div>
+</div>
+<!-- Tactical Toggles Grid -->
+<div class="flex flex-col gap-4">
+<div class="flex items-center gap-2">
+<div class="h-px bg-[#333] w-8"></div>
+<h3 class="font-mono text-xs text-primary/70 tracking-widest uppercase">Quick Access Targets</h3>
+<div class="h-px bg-[#333] flex-1"></div>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+<!-- Toggle 1: Seoul -->
+<button class="group relative h-14 bg-transparent border border-[#333] hover:border-primary hover:bg-primary/5 transition-all duration-200 flex items-center justify-between px-4 overflow-hidden">
+<div class="absolute inset-0 bg-primary/0 group-hover:bg-primary/10 transition-colors"></div>
+<span class="font-display font-bold text-lg tracking-wider text-white group-hover:text-primary z-10">SEOUL</span>
+<span class="font-mono text-[10px] text-text-muted group-hover:text-primary/70 z-10">KR-11</span>
+<!-- Corner accents -->
+<div class="absolute top-0 left-0 w-2 h-2 border-t border-l border-transparent group-hover:border-primary transition-colors"></div>
+<div class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-transparent group-hover:border-primary transition-colors"></div>
+</button>
+<!-- Toggle 2: Busan -->
+<button class="group relative h-14 bg-transparent border border-[#333] hover:border-primary hover:bg-primary/5 transition-all duration-200 flex items-center justify-between px-4 overflow-hidden">
+<div class="absolute inset-0 bg-primary/0 group-hover:bg-primary/10 transition-colors"></div>
+<span class="font-display font-bold text-lg tracking-wider text-white group-hover:text-primary z-10">BUSAN</span>
+<span class="font-mono text-[10px] text-text-muted group-hover:text-primary/70 z-10">KR-26</span>
+<div class="absolute top-0 left-0 w-2 h-2 border-t border-l border-transparent group-hover:border-primary transition-colors"></div>
+<div class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-transparent group-hover:border-primary transition-colors"></div>
+</button>
+<!-- Toggle 3: Gangnam (Active State Simulation) -->
+<button class="group relative h-14 bg-primary border border-primary flex items-center justify-between px-4 overflow-hidden shadow-glow">
+<span class="font-display font-bold text-lg tracking-wider text-black z-10">GANGNAM</span>
+<span class="font-mono text-[10px] text-black/70 font-bold z-10">KR-GN</span>
+<!-- Active indicator -->
+<div class="absolute right-0 top-0 bottom-0 w-1 bg-white/30"></div>
+</button>
+<!-- Toggle 4: Pangyo -->
+<button class="group relative h-14 bg-transparent border border-[#333] hover:border-primary hover:bg-primary/5 transition-all duration-200 flex items-center justify-between px-4 overflow-hidden">
+<div class="absolute inset-0 bg-primary/0 group-hover:bg-primary/10 transition-colors"></div>
+<span class="font-display font-bold text-lg tracking-wider text-white group-hover:text-primary z-10">PANGYO</span>
+<span class="font-mono text-[10px] text-text-muted group-hover:text-primary/70 z-10">KR-PG</span>
+<div class="absolute top-0 left-0 w-2 h-2 border-t border-l border-transparent group-hover:border-primary transition-colors"></div>
+<div class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-transparent group-hover:border-primary transition-colors"></div>
+</button>
+</div>
+</div>
+<!-- Recent Logs Mini-View -->
+<div class="mt-8 border-t border-[#333] pt-4 opacity-60 hover:opacity-100 transition-opacity">
+<h4 class="font-mono text-[10px] text-text-muted mb-3">RECENT SYSTEM ACTIVITY</h4>
+<div class="font-mono text-xs space-y-2">
+<div class="flex items-center gap-4 text-white/50">
+<span class="text-primary/40">14:02:44</span>
+<span class="flex-1">[SYSTEM] ENCRYPTED UPLINK ESTABLISHED</span>
+<span class="text-success text-[10px]">OK</span>
+</div>
+<div class="flex items-center gap-4 text-white/50">
+<span class="text-primary/40">14:01:12</span>
+<span class="flex-1">[USER] QUERY: "SEOUL_METRO_GRID"</span>
+<span class="text-success text-[10px]">CACHED</span>
+</div>
+<div class="flex items-center gap-4 text-white/50">
+<span class="text-primary/40">13:58:05</span>
+<span class="flex-1">[WARN] PACKET LOSS DETECTED IN SECTOR 4</span>
+<span class="text-alert text-[10px]">RETRYING</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom UI Elements -->
+<div class="absolute bottom-6 left-6 right-6 flex justify-between items-end pointer-events-none">
+<div class="flex flex-col gap-1">
+<div class="w-24 h-1 bg-primary/20">
+<div class="h-full w-2/3 bg-primary animate-pulse"></div>
+</div>
+<span class="font-mono text-[10px] text-primary/60">MEMORY: 64%</span>
+</div>
+<div class="hidden md:flex gap-8">
+<div class="text-right">
+<div class="font-mono text-[10px] text-text-muted">LATITUDE</div>
+<div class="font-display font-bold text-lg text-white/80">37.5665° N</div>
+</div>
+<div class="text-right">
+<div class="font-mono text-[10px] text-text-muted">LONGITUDE</div>
+<div class="font-display font-bold text-lg text-white/80">126.9780° E</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Loading Progress Bar (Hidden by default, shown for structure) -->
+<div class="h-[2px] w-full bg-[#151515] fixed top-[60px] left-0 z-50">
+<div class="h-full bg-primary w-0 shadow-[0_0_10px_#06e8f9] transition-all duration-[2000ms]" style="width: 0%"></div>
+</div>
+</div>
+<script>
+        // Simple script to handle the typing placeholder logic for visual effect
+        const input = document.getElementById('command-input');
+        const placeholder = document.getElementById('typing-placeholder');
+        
+        input.addEventListener('input', (e) => {
+            if (e.target.value.length > 0) {
+                placeholder.style.display = 'none';
+            } else {
+                placeholder.style.display = 'block';
+            }
+        });
+    </script>
+</body></html>

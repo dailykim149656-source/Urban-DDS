@@ -1,0 +1,9 @@
+node_modules
+.next
+.npm-cache
+npm-cache
+tsconfig.tsbuildinfo
+*.log
+.env
+.env.*
+!.env.example

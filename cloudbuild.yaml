@@ -1,0 +1,73 @@
+steps:
+  - name: 'node:22'
+    id: lint-compile
+    entrypoint: sh
+    args:
+      - -lc
+      - |
+        npm ci
+        npm run typecheck
+        npm run build
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: build-container
+    args:
+      - build
+      - -t
+      - $_IMAGE_URI
+      - .
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: push-container
+    args:
+      - push
+      - $_IMAGE_URI
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: deploy-run
+    entrypoint: sh
+    args:
+      - -lc
+      - |
+        SERVICE_ACCOUNT="$_SERVICE_ACCOUNT"
+        if [ -z "$SERVICE_ACCOUNT" ]; then
+          SERVICE_ACCOUNT="${_SERVICE_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+        fi
+
+        DEPLOY_FLAGS="--set-env-vars=NODE_ENV=production,GEMINI_MODEL=gemini-2.5-flash,FIREBASE_USE_FIRESTORE=true"
+
+        if gcloud secrets describe GEMINI_API_KEY >/dev/null 2>&1; then
+          DEPLOY_FLAGS="$DEPLOY_FLAGS --set-secrets=GEMINI_API_KEY=GEMINI_API_KEY:latest"
+        else
+          echo "GEMINI_API_KEY secret not found; runtime fallback will determine behavior."
+        fi
+
+        if gcloud secrets describe FIREBASE_PROJECT_ID >/dev/null 2>&1 \
+          && gcloud secrets describe FIREBASE_CLIENT_EMAIL >/dev/null 2>&1 \
+          && gcloud secrets describe FIREBASE_PRIVATE_KEY >/dev/null 2>&1; then
+          DEPLOY_FLAGS="$DEPLOY_FLAGS --set-secrets=FIREBASE_PROJECT_ID=FIREBASE_PROJECT_ID:latest --set-secrets=FIREBASE_CLIENT_EMAIL=FIREBASE_CLIENT_EMAIL:latest --set-secrets=FIREBASE_PRIVATE_KEY=FIREBASE_PRIVATE_KEY:latest"
+        else
+          echo "Firebase secrets not all present; using ADC or existing runtime env variables."
+        fi
+
+        gcloud run deploy "$_SERVICE_NAME" \
+          --image="$_IMAGE_URI" \
+          --region="$_REGION" \
+          --platform=managed \
+          --allow-unauthenticated \
+          $DEPLOY_FLAGS \
+          --service-account="$SERVICE_ACCOUNT"
+
+images:
+  - $_IMAGE_URI
+
+substitutions:
+  _REGION: 'us-central1'
+  _SERVICE_NAME: 'urban-dds-runner'
+  _SERVICE_ACCOUNT: ''
+  _AR_REPO: 'urban-dds'
+  _IMAGE_TAG: '$SHORT_SHA'
+  _IMAGE_URI: '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE_NAME}:${_IMAGE_TAG}'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

@@ -1,0 +1,122 @@
+name: Deploy to GCP Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  cloud-build:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP with Workload Identity
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER || secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_WIF_SERVICE_ACCOUNT || secrets.GCP_WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Preflight checks
+        run: |
+          set -euo pipefail
+
+          PROJECT_ID="$(gcloud config get-value project)"
+          REGION="${{ vars.GCP_REGION || 'us-central1' }}"
+          SERVICE_NAME="${{ vars.GCP_RUNNER_SERVICE_NAME || vars.GCP_RUNNER_SERVICE || 'urban-dds-runner' }}"
+          AR_REPO="${{ vars.GCP_ARTIFACT_REPOSITORY || 'urban-dds' }}"
+          SERVICE_ACCOUNT="${{ vars.GCP_RUNNER_SERVICE_ACCOUNT || secrets.GCP_RUNNER_SERVICE_ACCOUNT }}"
+
+          if [ -z "${PROJECT_ID}" ]; then
+            echo "Unable to resolve Google Cloud project."
+            exit 1
+          fi
+
+          if [ -z "${REGION}" ]; then
+            echo "GCP region is required."
+            exit 1
+          fi
+
+          if [ -z "${AR_REPO}" ]; then
+            echo "Artifact Registry repository name is required."
+            exit 1
+          fi
+
+          if [ -z "${SERVICE_NAME}" ]; then
+            echo "Cloud Run service name is required."
+            exit 1
+          fi
+
+          gcloud config set project "${PROJECT_ID}"
+          REQUIRED_SERVICES=(
+            "run.googleapis.com"
+            "cloudbuild.googleapis.com"
+            "artifactregistry.googleapis.com"
+            "secretmanager.googleapis.com"
+            "firestore.googleapis.com"
+            "aiplatform.googleapis.com"
+          )
+          for service in "${REQUIRED_SERVICES[@]}"; do
+            if ! gcloud services list --enabled --filter="config.name:$service" --format="value(config.name)" | grep -q "$service"; then
+              echo "Required API is not enabled: $service"
+              echo "Enable it in GCP and retry."
+              exit 1
+            fi
+            echo "API enabled: $service"
+          done
+
+          if [ -z "${SERVICE_ACCOUNT}" ]; then
+            SERVICE_ACCOUNT="${SERVICE_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+            echo "Using default service account ${SERVICE_ACCOUNT}"
+          else
+            echo "Using configured service account ${SERVICE_ACCOUNT}"
+          fi
+
+          echo "Preflight checks passed."
+
+      - name: Run Cloud Build
+        run: |
+          set -euo pipefail
+          PROJECT_ID="$(gcloud config get-value project)"
+          REGION="${{ vars.GCP_REGION || 'us-central1' }}"
+          SERVICE_NAME="${{ vars.GCP_RUNNER_SERVICE_NAME || vars.GCP_RUNNER_SERVICE || 'urban-dds-runner' }}"
+          AR_REPO="${{ vars.GCP_ARTIFACT_REPOSITORY || 'urban-dds' }}"
+          IMAGE_TAG="${{ github.sha }}"
+          SERVICE_ACCOUNT="${{ vars.GCP_RUNNER_SERVICE_ACCOUNT || secrets.GCP_RUNNER_SERVICE_ACCOUNT }}"
+
+          if [ -z "$SERVICE_ACCOUNT" ]; then
+            SERVICE_ACCOUNT="${SERVICE_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+          fi
+
+          gcloud builds submit --config cloudbuild.yaml . \
+            --substitutions _REGION="$REGION",_AR_REPO="$AR_REPO",_SERVICE_NAME="$SERVICE_NAME",_SERVICE_ACCOUNT="$SERVICE_ACCOUNT",_IMAGE_TAG="$IMAGE_TAG"
+
+      - name: Smoke test deployed service
+        run: |
+          set -euo pipefail
+          REGION="${{ vars.GCP_REGION || 'us-central1' }}"
+          SERVICE_NAME="${{ vars.GCP_RUNNER_SERVICE_NAME || vars.GCP_RUNNER_SERVICE || 'urban-dds-runner' }}"
+          SERVICE_URL=""
+
+          for i in 1 2 3 4 5; do
+            SERVICE_URL="$(gcloud run services describe "$SERVICE_NAME" --region="$REGION" --platform=managed --format='value(status.url)' || true)"
+            if [ -n "$SERVICE_URL" ]; then
+              break
+            fi
+            echo "Waiting for Cloud Run service URL... (${i}/5)"
+            sleep 5
+          done
+
+          if [ -z "$SERVICE_URL" ]; then
+            echo "Failed to resolve deployed service URL."
+            exit 1
+          fi
+
+          bash scripts/smoke-test-gcp.sh "$SERVICE_URL"
